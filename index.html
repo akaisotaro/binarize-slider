@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>binarize-slider</title>
+  <title>binarize-slider with Histogram</title>
   <style>
     body { text-align: center; font-family: sans-serif; }
     canvas { margin: 10px; border: 1px solid #ccc; }
@@ -21,8 +21,8 @@
   </style>
 </head>
 <body>
-  <h1>binarize-slider</h1>
-  グレースケール画像の画素値0-255を調べるためのツール<br><br>
+  <h1>binarize-slider with Histogram</h1>
+  二値化の閾値ツール<br><br>
 
   <input type="file" id="upload" accept="image/*"><br><br>
 
@@ -30,12 +30,17 @@
     <button onclick="changeThreshold(-1)">−</button>
     <input type="range" id="threshold" min="0" max="255" value="128">
     <button onclick="changeThreshold(1)">＋</button>
-    <span>しきい値: <span id="thresholdValue">128</span></span>
+    <span>閾値: <span id="thresholdValue">128</span></span>
   </div>
 
   <div>
     <canvas id="grayCanvas"></canvas>
     <canvas id="binaryCanvas"></canvas>
+  </div>
+
+  <div>
+    <h3>ヒストグラム</h3>
+    <canvas id="histogramCanvas" width="256" height="100"></canvas>
   </div>
 
   <script>
@@ -44,8 +49,10 @@
     const thresholdValue = document.getElementById('thresholdValue');
     const grayCanvas = document.getElementById('grayCanvas');
     const binaryCanvas = document.getElementById('binaryCanvas');
+    const histogramCanvas = document.getElementById('histogramCanvas');
     const grayCtx = grayCanvas.getContext('2d');
     const binaryCtx = binaryCanvas.getContext('2d');
+    const histCtx = histogramCanvas.getContext('2d');
     let originalImageData;
 
     upload.addEventListener('change', handleImageUpload);
@@ -58,7 +65,7 @@
 
     function changeThreshold(delta) {
       let val = parseInt(threshold.value) + delta;
-      val = Math.min(255, Math.max(0, val)); // 0〜255に制限
+      val = Math.min(255, Math.max(0, val));
       threshold.value = val;
       updateThresholdDisplay();
       if (originalImageData) {
@@ -86,18 +93,19 @@
           grayCtx.drawImage(img, 0, 0);
           const imgData = grayCtx.getImageData(0, 0, img.width, img.height);
           const data = imgData.data;
+          const histogram = new Array(256).fill(0);
 
           for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
             data[i] = data[i + 1] = data[i + 2] = gray;
+            histogram[gray]++;
           }
 
           grayCtx.putImageData(imgData, 0, 0);
           originalImageData = imgData;
           renderBinary(parseInt(threshold.value));
+          renderHistogram(histogram);
         };
         img.src = e.target.result;
       };
@@ -113,12 +121,25 @@
 
       const data = binaryData.data;
       for (let i = 0; i < data.length; i += 4) {
-        const gray = data[i]; // R=G=B
+        const gray = data[i];
         const binary = gray >= thresholdVal ? 255 : 0;
         data[i] = data[i + 1] = data[i + 2] = binary;
       }
 
       binaryCtx.putImageData(binaryData, 0, 0);
+    }
+
+    function renderHistogram(histogram) {
+      const canvasWidth = histogramCanvas.width;
+      const canvasHeight = histogramCanvas.height;
+      histCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      const maxVal = Math.max(...histogram);
+      for (let i = 0; i < 256; i++) {
+        const barHeight = (histogram[i] / maxVal) * canvasHeight;
+        histCtx.fillStyle = 'gray';
+        histCtx.fillRect(i, canvasHeight - barHeight, 1, barHeight);
+      }
     }
   </script>
 </body>
